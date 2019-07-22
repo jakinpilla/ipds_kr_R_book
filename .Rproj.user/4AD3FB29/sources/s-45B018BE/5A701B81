@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1563802062912.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "4039197528",
+    "id" : "5A701B81",
+    "lastKnownWriteTime" : 1563803832,
+    "last_content_update" : 1563803832598,
+    "path" : "~/ipds_kr_R_book/ch07_basic_analysis/ch07_basic_analysis.R",
+    "project_path" : "ch07_basic_analysis/ch07_basic_analysis.R",
+    "properties" : {
+        "cursorPosition" : "96,0",
+        "scrollLine" : "89"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 5,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
