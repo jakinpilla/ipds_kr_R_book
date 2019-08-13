@@ -11,7 +11,7 @@ summary(data_house)
 con <- dbConnect(
   MySQL(),
   user = "root", 
-  password = "chr0n3!7!"
+  password = "******"
 )
 
 dbSendQuery(con, "CREATE DATABASE house_price;")
