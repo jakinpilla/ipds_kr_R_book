@@ -23,7 +23,7 @@ dbDisconnect(con)
 con_house_price <- dbConnect(
   MySQL(),
   user = "root", 
-  password = "chr0n3!7!",
+  password = "******"
   dbname = "house_price"
 )
 
