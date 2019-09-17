@@ -91,39 +91,47 @@ summary(hwy_lm2)
 predict(hwy_lm2, newdata = data.frame(class="pickup"))
 opar <- par(mfrow = c(2,2), oma = c(0,0,1.1,0))
 plot(hwy_lm2, las=1)
+# 
+# chall <- read.csv('https://raw.githubusercontent.com/stedy/Machine-Learning-with-R-datasets/master/challenger.csv')
+# chall %>% write_csv("chall.csv")
+# chall %>% tbl_df() -> chall
 
-chall <- read.csv('https://raw.githubusercontent.com/stedy/Machine-Learning-with-R-datasets/master/challenger.csv')
-chall %>% write_csv("chall.csv")
-chall %>% tbl_df() -> chall
-
+read_csv('chall.csv') -> chall
 glimpse(chall)
 
 chall %>% ggplot(aes(temperature, distress_ct)) + geom_point()
 chall %>% ggplot(aes(factor(distress_ct), temperature)) + geom_boxplot()
 
+# 반응변수를 2차원 매트릭스로 둠.
+# 성공횟수: s_i, 실패횟수: a_i - s_i, weight 옵션은 필요없음
+
 chall_glm <- 
-  glm(cbind(distress_ct, o_ring_ct - distress_ct) ~ 
+  glm(cbind(distress_ct, o_ring_ct - distress_ct) ~  # 첫열 distress_ct = s_i 이므로 O링의 실패를 `성공`으로 둠
         temperature, data = chall, family = 'binomial')
 
 chall_glm
 
 summary(chall_glm)
 
+# Number of Fisher Scoring iterations: 6 :: 반복회수가 6이다.
+# deviance ::
+20.706 - 9.527
+
+1 - pchisq(11.2, 1) 
+# 자유도 1인 카이제곱 분포에서 아주 나오기 힘든 값... 이 모형은 데이터를 의미있게 설명.
+
 predict(chall_glm, data.frame(temperature = 30))
 
 exp(3.45) / (exp(3.45) + 1)
+
 predict(chall_glm, data.frame(temperature = 30), type = 'response')
 
 par(mfrow =c(1,1))
 logistic <- function(x){exp(x)/(exp(x)+1)}
 
-plot(c(20,85), c(0,1), type = "n", xlab = "temperature",
-     ylab = "prob")
+plot(c(20,85), c(0,1), type = "n", xlab = "temperature", ylab = "prob")
 tp <- seq(20, 85, 1)
-chall_glm_pred <-
-  predict(chall_glm,
-          data.frame(temperature = tp),
-          se.fit = TRUE)
+chall_glm_pred <- predict(chall_glm, data.frame(temperature = tp), se.fit = TRUE)
 lines(tp, logistic(chall_glm_pred$fit))
 lines(tp, logistic(chall_glm_pred$fit - 1.96 * chall_glm_pred$se.fit), lty=2)
 lines(tp, logistic(chall_glm_pred$fit + 1.96 * chall_glm_pred$se.fit), lty=2)
