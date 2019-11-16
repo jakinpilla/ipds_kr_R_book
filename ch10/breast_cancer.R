@@ -15,8 +15,8 @@ binomial_deviance <- function(y_obs, yhat) {
 }
 
 
-
-data <- tbl_df(read.table("./data/wdbc.data", strip.white = T, 
+setwd("~/ipds_kr_R_book/ch10")
+data <- tbl_df(read.table("wdbc.data", strip.white = T, 
                           sep = ",", header = F)) 
 feature_names <- c('radius', 'texture', 'perimeter', 'area', 'smoothness', 
                   'compactness', 'concavity', 'concave_points', 'symmetry', 
@@ -135,7 +135,7 @@ dbGetQuery(con, "select * from breast_cancer;")
 
 data <- dbGetQuery(con, "select * from breast_cancer;")
 data %>% glimpse()
-summary(data)
+summary(data)c
 
 data_1 <- data %>% as_tibble() %>% dplyr::select(-row_names, -id)
 
@@ -288,11 +288,28 @@ validation <- data[validate_idx, ]
 test <- data[test_idx, ]
 
 
+# n <- nrow(data)
+# train_idx <- sample(1:n, n*.8)
+# test_idx <- setdiff(1:n, train_idx)
+# 
+# train_data <- data[train_idx, ]
+# test_data <- data[test_idx, ]
+# 
+# train_data %>% dim()
+# test_data %>% dim()
 # -------------------------------------------------------------------------
 
-library(rsample)
+data %>% as_tibble()
 
+library(rsample)
 data_split <- initial_split(data_cancer, .6)
+
+# train_data <- training(data_split)
+# test_data <- testing(data_split)
+# 
+# train_data %>% nrow()
+# test_data %>% nrow()
+
 training <- training(data_split)
 val_testing <- testing(data_split)
 
@@ -305,6 +322,7 @@ validating <- val_testing_split %>% training()
 testing <- val_testing_split %>% testing()
 
 
+# 60:20:20 비율로 데이터 나누기...
 training %>% nrow()
 validating %>% nrow()
 testing %>% nrow()
@@ -314,6 +332,7 @@ testing %>% nrow()
 
 training %>% head()
 str(training)
+
 
 data_lm_full <- glm(class ~., data=training, family = binomial)
 summary(data_lm_full)
@@ -327,22 +346,43 @@ y_obs <- as.numeric(as.character(validating$class))
 yhat_lm <- predict(data_lm_full, newdata = validating, type = "response")
 pred_lm <- prediction(yhat_lm, y_obs)
 perf_lm <- performance(pred_lm, measure = 'tpr', x.measure = 'fpr')
+
 performance(pred_lm, "auc")@y.values[[1]]
 binomial_deviance(y_obs, yhat_lm)
 
 plot(perf_lm)
+
+
+
+# Evaluation test ---------------------------------------------------------
+
+y_obs <- testing$class %>% as.character %>% as.numeric
+y_lm_hat <- testing %>% predict(data_lm_full, newdata = ., type = 'response')
+y_pred <- ROCR::prediction(y_lm_hat, y_obs)
+y_perf <- ROCR::performance(y_pred, measure = 'tpr', x.measure = 'fpr')
+plot(y_perf, col = 'blue')
+abline(0, 1)
+legend('bottomright', inset = .1, 
+       legend = c('Logistic Regression'), 
+       col = 'blue', lty = 1)
+ROCR::performance(y_pred, "auc")@y.values[[1]]
+
+binomial_deviance
 
 # Lasso -------------------------------------------------------------------
 
 # xx <- model.matrix(class ~ .-1, data_cancer)
 # training
 
-x <- model.matrix(class ~ .-1, training)
+x <- model.matrix(class ~ .-1, training) # -1의 의미 : 첫 번째 컬럼인 class 변수를 제거한다.
+
+# x %>% head %>% View()
 # x <- xx[training_idx, ]
+
 y <- as.numeric(as.character(training$class))
 # glimpse(x)
 
-data_cvfit <- cv.glmnet(x, y, family = "binomial")
+data_cvfit <- cv.glmnet(x, y, family = "binomial") # glm()에서는 family = binomial로 한 반면, cv.glm()에서는 family = "binomial"로 한 것에 유의
 plot(data_cvfit)
 
 # lambda.1se :: 해석 가능한 모형을 위한 변수선택
@@ -374,12 +414,21 @@ binomial_deviance(y_obs, yhat_glmnet)
 data_tr <- rpart(class ~., data=training)
 
 printcp(data_tr)
+plotcp(data_tr)
 summary(data_tr)
 
 opar <- par(mfrow = c(1,1), xpd = NA)
 plot(data_tr)
 text(data_tr, use.n = T)
 par(opar)
+
+training %>% count(class)
+training %>% ggplot(aes(class)) + geom_bar() 
+
+# worst_concave_points >= 0.1416 (오른쪽 가지)이면 악성이다.
+# worst_concave_points < 0.1416 이고 worst_area >= 957.5이면 악성이다.
+# worst_concave_points < 0.1414 이고 worst_area < 957.5 이면 양성이다.
+
 
 yhat_tr <- predict(data_tr, validating)
 yhat_tr <- yhat_tr[, "1"]
@@ -392,8 +441,14 @@ plot(perf_lm, col = 'red', add = T)
 plot(perf_tr, col = 'blue', add = T)
 
 performance(pred_tr, "auc")@y.values[[1]]
-
 binomial_deviance(y_obs, yhat_tr)
+
+predcited_class <- predict(data_tr, newdata = testing[, -1], type = 'class')
+actual_class <- testing$class %>% as.character %>% as.numeric
+
+table(predcited_class, actual_class)
+
+caret::confusionMatrix(predcited_class %>% as.factor, actual_class %>% as.factor)
 
 # Random Forest -----------------------------------------------------------
 
@@ -419,54 +474,54 @@ performance(pred_rf, "auc")@y.values[[1]]
 binomial_deviance(y_obs, yhat_rf)
 
 # Boosting ----------------------------------------------------------------
-
-par(mfrow = c(1,1))
-set.seed(2019)
-data_for_gbm <- training %>% mutate(class = as.numeric(as.character(class)))
-
-# consumming time----
-data_gbm <- gbm(class ~. , data = data_for_gbm, distribution = "bernoulli",
-                n.trees = 50000, cv.folds = 3, verbose = T)
-
-# (best_iter = gbm.perf(data_gbm, method = "cv"))
-
-yhat_gbm <- predict(data_gbm, n.trees = 12735, newdata = validating, type = 'response')
-
-pred_gbm <- prediction(yhat_gbm, y_obs) 
-perf_gbm <- performance(pred_gbm, measure = 'tpr', x.measure = 'fpr')
-
+# 
+# par(mfrow = c(1,1))
+# set.seed(2019)
+# data_for_gbm <- training %>% mutate(class = as.numeric(as.character(class)))
+# 
+# # consumming time----
+# data_gbm <- gbm(class ~. , data = data_for_gbm, distribution = "bernoulli",
+#                 n.trees = 50000, cv.folds = 3, verbose = T)
+# 
+# # (best_iter = gbm.perf(data_gbm, method = "cv"))
+# 
+# yhat_gbm <- predict(data_gbm, n.trees = 12735, newdata = validating, type = 'response')
+# 
+# pred_gbm <- prediction(yhat_gbm, y_obs) 
+# perf_gbm <- performance(pred_gbm, measure = 'tpr', x.measure = 'fpr')
+# 
 plot(perf_glmnet)
 plot(perf_lm, col = 'red', add = T)
 plot(perf_tr, col = 'blue', add = T)
 plot(perf_rf, col = 'green', add = T)
-plot(perf_gbm, col = 'cyan', add = T)
+# plot(perf_gbm, col = 'cyan', add = T)
 
-performance(pred_gbm, "auc")@y.values[[1]]
-binomial_deviance(y_obs, yhat_gbm)
+# performance(pred_gbm, "auc")@y.values[[1]]
+# binomial_deviance(y_obs, yhat_gbm)
 
-data.frame(method = c('lm', 'glmnet', 'rf', 'gbm'),
+data.frame(method = c('lm', 'glmnet', 'rf'),
            auc = c(performance(pred_lm, "auc")@y.values[[1]],
                    performance(pred_glmnet, "auc")@y.values[[1]],
-                   performance(pred_rf, "auc")@y.values[[1]],
-                   performance(pred_gbm, "auc")@y.values[[1]]),
+                   performance(pred_rf, "auc")@y.values[[1]]),
+                   # performance(pred_gbm, "auc")@y.values[[1]]),
            bin_dev = c(binomial_deviance(y_obs, yhat_lm),
                        binomial_deviance(y_obs, yhat_glmnet),
-                       binomial_deviance(y_obs, yhat_rf),
-                       binomial_deviance(y_obs, yhat_gbm)))
+                       binomial_deviance(y_obs, yhat_rf)))
+                       # binomial_deviance(y_obs, yhat_gbm)))
 
 perf_lm <- performance(pred_lm, measure = 'tpr', x.measure = 'fpr')
 perf_glmnet <- performance(pred_glmnet, measure = 'tpr', x.measure = 'fpr')
 perf_rf <- performance(pred_rf, measure = 'tpr', x.measure = 'fpr')
-perf_gbm <- performance(pred_gbm, measure = 'tpr', x.measure = 'fpr')
+# perf_gbm <- performance(pred_gbm, measure = 'tpr', x.measure = 'fpr')
 
 plot(perf_lm, col = 'black', main = 'ROC Curve')
 plot(perf_glmnet, col = 'blue', add = T)
 plot(perf_rf, col = 'red', add = T)
-plot(perf_gbm, col = 'cyan', add = T)
+# plot(perf_gbm, col = 'cyan', add = T)
 abline(0, 1)
 legend('bottomright', inset=.1,
-       legend=c("GLM", "glmnet", "RF", "GBM"),
-       col = c("black", "blue", "red", "cyan"), lty = 1, lwd = 2)
+       legend=c("GLM", "glmnet", "RF"),
+       col = c("black", "blue", "red"), lty = 1, lwd = 2)
 
 # we choose lasso model...
 # apply test dataset to lasso model...
@@ -490,14 +545,8 @@ binomial_deviance(y_obs_test, yhat_glmnet_test)
 pairs(data.frame(y_obs = y_obs, 
                  yhat_lm = yhat_lm,
                  yhat_glmnet = c(yhat_glmnet),
-                 yhat_rf = yhat_rf,
-                 yhat_gbm = yhat_gbm))
-
-
-
-
-
-
+                 yhat_rf = yhat_rf))
+                 # yhat_gbm = yhat_gbm))
 
 
 
