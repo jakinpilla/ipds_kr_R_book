@@ -36,7 +36,7 @@ library(RMySQL)
 con <- dbConnect(
   MySQL(),
   user = "root", 
-  password = "******",
+  password = "chr0n3!7!",
   dbname = "breast_cancer",
 )
 
@@ -120,38 +120,47 @@ data <- dbGetQuery(con, "select * from breast;")
 data %>% glimpse()
 summary(data)
 
-data <- data %>% dplyr::select(-row_names, -id)
+data_1 <- data %>% as_tibble() %>% dplyr::select(-row_names, -id)
 
 # class 변수를 factor 변수로 변환
-data$class <- factor(ifelse(data$class == "B", 0, 1))
+data_1$class <- as.factor(data_1$class)
+
+data_1 %>%
+  mutate(class = recode(class, 'B' = 0, 'M' = 1)) %>%
+  mutate(class = as.factor(class)) -> data_2 -> data_cancer
+
+# data$class <- factor(ifelse(data$class == "B", 0, 1))
 
 # EDA ---------------------------------------------------------------------
 
-data %>% as_tibble() %>% dplyr::select(class, starts_with('mean_')) %>%
+data_cancer %>% as_tibble() %>% dplyr::select(class, starts_with('mean_')) %>%
   sample_n(min(1000, nrow(data))) -> sample_data_mean
+
 pairs(sample_data_mean)
 
-
-data %>% as_tibble() %>% dplyr::select(class, starts_with('se_')) %>%
+data_cancer %>% as_tibble() %>% dplyr::select(class, starts_with('se_')) %>%
   sample_n(min(1000, nrow(data))) -> sample_data_se
 
 pairs(sample_data_se)
 
-data %>% as_tibble() %>% dplyr::select(class, starts_with('worst_')) %>%
+data_cancer %>% as_tibble() %>% dplyr::select(class, starts_with('worst_')) %>%
   sample_n(min(1000, nrow(data))) -> sample_data_worst
 
 pairs(sample_data_worst)
 
-data %>%
+
+# -------------------------------------------------------------------------
+
+data_cancer %>%
   ggplot(aes(class)) + geom_bar() -> p1
 
-data %>%
+data_cancer %>%
   ggplot(aes(class, mean_concave_points)) + geom_jitter(col = 'gray') + geom_boxplot(alpha = .5) -> p2
 
-data %>%
+data_cancer %>%
   ggplot(aes(class, mean_radius)) + geom_jitter(col = 'gray') + geom_boxplot(alpha = .5) -> p3
 
-data %>%
+data_cancer %>%
   ggplot(aes(mean_concave_points, mean_radius)) + geom_jitter(col = 'gray') + geom_smooth() -> p4
 
 grid.arrange(p1, p2, p3, p4, ncol = 2)
@@ -170,6 +179,28 @@ validation <- data[validate_idx, ]
 test <- data[test_idx, ]
 
 
+# -------------------------------------------------------------------------
+
+library(rsample)
+
+data_split <- initial_split(data_cancer, .6)
+training <- training(data_split)
+val_testing <- testing(data_split)
+
+training %>% nrow()
+val_testing %>% nrow()
+
+val_testing_split <- val_testing %>% initial_split(.5)
+validating <- val_testing_split %>% training()
+
+testing <- val_testing_split %>% testing()
+
+
+training %>% nrow()
+validating %>% nrow()
+testing %>% nrow()
+
+
 # Logistic Regression -----------------------------------------------------
 
 training %>% head()
@@ -183,19 +214,24 @@ predict(data_lm_full, newdata = data[1:5, ], type = 'response')
 
 # Evaluation --------------------------------------------------------------
 
-y_obs <- as.numeric(as.character(validation$class))
-yhat_lm <- predict(data_lm_full, newdata = validation, type = "response")
+y_obs <- as.numeric(as.character(validating$class))
+yhat_lm <- predict(data_lm_full, newdata = validating, type = "response")
 pred_lm <- prediction(yhat_lm, y_obs)
+perf_lm <- performance(pred_lm, measure = 'tpr', x.measure = 'fpr')
 performance(pred_lm, "auc")@y.values[[1]]
 binomial_deviance(y_obs, yhat_lm)
 
+plot(perf_lm)
+
 # Lasso -------------------------------------------------------------------
 
-xx <- model.matrix(class ~ .-1, data)
+# xx <- model.matrix(class ~ .-1, data_cancer)
+# training
 
-x <- xx[training_idx, ]
+x <- model.matrix(class ~ .-1, training)
+# x <- xx[training_idx, ]
 y <- as.numeric(as.character(training$class))
-glimpse(x)
+# glimpse(x)
 
 data_cvfit <- cv.glmnet(x, y, family = "binomial")
 plot(data_cvfit)
@@ -209,14 +245,20 @@ coef(data_cvfit, s = c("lambda.min"))
 
 predict.cv.glmnet(data_cvfit, s = "lambda.min", newx = x[1:5, ], type = "response")
 
-yhat_glmnet <- predict(data_cvfit, s = "lambda.min", newx = xx[validate_idx, ], 
+newx = model.matrix(class ~.-1, validating)
+
+yhat_glmnet <- predict(data_cvfit, s = "lambda.min", newx = newx, 
                        type = 'response')
 
-yhat_glmnet <- yhat_glmnet[, 1] # change to a vector from [n*1] matrix
+yhat_glmnet <- yhat_glmnet %>% as_tibble() %>% pull() # change to a vector from [n*1] matrix
 pred_glmnet <- prediction(yhat_glmnet, y_obs)
+perf_glmnet <- performance(pred_glmnet, measure = 'tpr', x.measure = 'fpr')
+
+plot(perf_glmnet)
+plot(perf_lm, col = 'red', add = T)
+
 performance(pred_glmnet, "auc")@y.values[[1]]
 binomial_deviance(y_obs, yhat_glmnet)
-
 
 # Tree Model --------------------------------------------------------------
 
@@ -230,13 +272,19 @@ plot(data_tr)
 text(data_tr, use.n = T)
 par(opar)
 
-yhat_tr <- predict(data_tr, validation)
+yhat_tr <- predict(data_tr, validating)
 yhat_tr <- yhat_tr[, "1"]
 
 pred_tr <- prediction(yhat_tr, y_obs)
-performance(pred_tr, "auc")@y.values[[1]]
-binomial_deviance(y_obs, yhat_tr)
+perf_tr <- performance(pred_tr, measure = 'tpr', x.measure = 'fpr')
 
+plot(perf_glmnet)
+plot(perf_lm, col = 'red', add = T)
+plot(perf_tr, col = 'blue', add = T)
+
+performance(pred_tr, "auc")@y.values[[1]]
+
+binomial_deviance(y_obs, yhat_tr)
 
 # Random Forest -----------------------------------------------------------
 
@@ -249,12 +297,17 @@ plot(data_rf)
 varImpPlot(data_rf)
 par(opar)
 
-yhat_rf <- predict(data_rf, newdata = validation, type = 'prob')[, '1']
+yhat_rf <- predict(data_rf, newdata = validating, type = 'prob')[, '1']
 pred_rf <- prediction(yhat_rf, y_obs)
+perf_rf <- performance(pred_rf, measure = 'tpr', x.measure = 'fpr')
+
+plot(perf_glmnet)
+plot(perf_lm, col = 'red', add = T)
+plot(perf_tr, col = 'blue', add = T)
+plot(perf_rf, col = 'green', add = T)
 
 performance(pred_rf, "auc")@y.values[[1]]
 binomial_deviance(y_obs, yhat_rf)
-
 
 # Boosting ----------------------------------------------------------------
 
@@ -262,13 +315,22 @@ par(mfrow = c(1,1))
 set.seed(2019)
 data_for_gbm <- training %>% mutate(class = as.numeric(as.character(class)))
 
+# consumming time----
 data_gbm <- gbm(class ~. , data = data_for_gbm, distribution = "bernoulli",
                 n.trees = 50000, cv.folds = 3, verbose = T)
 
 # (best_iter = gbm.perf(data_gbm, method = "cv"))
 
-yhat_gbm <- predict(data_gbm, n.trees = 12735, newdata = validation, type = 'response')
-pred_gbm <- prediction(yhat_gbm, y_obs)
+yhat_gbm <- predict(data_gbm, n.trees = 12735, newdata = validating, type = 'response')
+
+pred_gbm <- prediction(yhat_gbm, y_obs) 
+perf_gbm <- performance(pred_gbm, measure = 'tpr', x.measure = 'fpr')
+
+plot(perf_glmnet)
+plot(perf_lm, col = 'red', add = T)
+plot(perf_tr, col = 'blue', add = T)
+plot(perf_rf, col = 'green', add = T)
+plot(perf_gbm, col = 'cyan', add = T)
 
 performance(pred_gbm, "auc")@y.values[[1]]
 binomial_deviance(y_obs, yhat_gbm)
@@ -300,13 +362,21 @@ legend('bottomright', inset=.1,
 # we choose lasso model...
 # apply test dataset to lasso model...
 
-y_obs_test <- as.numeric(as.character(test$class))
-yhat_glmnet_test <- predict(data_cvfit, s = "lambda.min", newx = xx[test_idx, ], type = 'response')
+y_obs_test <- as.numeric(as.character(testing$class))
+
+newx = model.matrix(class ~ .-1, testing)
+
+yhat_glmnet_test <- predict(data_cvfit, s = "lambda.min", newx = newx, type = 'response')
 
 pred_glmnet_test <- prediction(yhat_glmnet_test, y_obs_test)
-performance(pred_glmnet_test, "auc")@y.values[[1]]
-binomial_deviance(y_obs, yhat_glmnet_test)
 
+perf_glmnet_test <- performance(pred_glmnet_test, measure = 'tpr', x.measure  = 'fpr')
+
+plot(perf_glmnet_test)
+
+performance(pred_glmnet_test, "auc")@y.values[[1]]
+
+binomial_deviance(y_obs_test, yhat_glmnet_test)
 
 pairs(data.frame(y_obs = y_obs, 
                  yhat_lm = yhat_lm,

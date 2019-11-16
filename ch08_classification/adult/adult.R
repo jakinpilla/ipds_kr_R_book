@@ -5,7 +5,6 @@ Packages <- c('tidyverse', 'data.table', 'reshape2', 'caret', 'rpart', 'GGally',
               'curl', 'gridExtra')
 lapply(Packages, library, character.only=T)
 
-
 adult <- read.csv("adult.data", header = F, strip.white = T)
 
 names(adult) <- c("age", "workclass", "fnlwgt", "education", "education_num",
