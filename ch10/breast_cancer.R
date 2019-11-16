@@ -36,7 +36,7 @@ library(RMySQL)
 con <- dbConnect(
   MySQL(),
   user = "root", 
-  password = "chr0n3!7!",
+  password = "****",
   dbname = "breast_cancer",
 )
 
@@ -44,79 +44,96 @@ con
 
 # ?RMySQL
 dbListTables(con)
+
+# https://stackoverflow.com/questions/50745431/trying-to-use-r-with-mysql-the-used-command-is-not-allowed-with-this-mysql-vers?rq=1
+# 
+# The following steps should fix the dbWritetable() error in R:
+#   
+# 1. Login MySQL terminal by typing "MySQL -u user -p*" (followed by user password if you set one).
+# 
+# 2. Type "SET GLOBAL local_infile = true;" in the MySQL terminal command.
+# 
+# 3. Lastly, type "SHOW GLOBAL VARIABLES LIKE 'local_infile';" into the terminal and check the command line output for the ON status.
+# 
+# I'm not sure why the database function fails from MySQL 5.6 to 8.0, however, "local_infile" enables user access to data loads from local sources--- this solution should work for all database interference stacks (R, Python, etc)!
+# dbWriteTable(con, "breast_cancer_data", data, overwrite = T)
+
 dbWriteTable(con, "breast_cancer", data)
 
-head(data)
-dbSendQuery(con, "CREATE TABLE breast (id INT);")
-dbListTables(con)
+# head(data)
+# dbSendQuery(con, "CREATE TABLE breast (id INT);")
+# dbListTables(con)
 
-dbWriteTable(con, "breast", data, overwrite = T)
+# dbWriteTable(con, "breast", data, overwrite = T)
 
 
-dbGetQuery(con, "select * from breast;")
+# dbGetQuery(con, "select * from breast;")
 dbGetQuery(con, "select * from breast_cancer;")
-dbRemoveTable(con, "breast_cancer")
+# dbRemoveTable(con, "breast_cancer")
 
-
-dbListTables(con)
-dbDisconnect(con)
-rm(con)
-
-# create database ---------------------------------------------------------
-
-dbSendQuery(con, "CREATE DATABASE bookstore;")
-dbSendQuery(con, "USE bookstore;")
-mydb = dbConnect(MySQL(), user='root', password='chr0n3!7!', host='localhost', dbname="bookstore")
-
-dbSendQuery(mydb, "drop table if exists books, authors")
-
-# creating tables in bookstore:
-
-dbSendQuery(mydb, "CREATE TABLE books (book_id INT, 
-            title VARCHAR(50),
-            author VARCHAR(50));")
-
-dbListTables(mydb);
-
-dbSendQuery(mydb,
-            "ALTER TABLE books
-            CHANGE COLUMN book_id book_id INT AUTO_INCREMENT PRIMARY KEY,
-            CHANGE COLUMN author author_id INT,
-            ADD COLUMN description TEXT,
-            ADD COLUMN genre ENUM('novel', 'poetry', 'drama', 'tutorials', 'text', 'other'),
-            ADD COLUMN publisher_id INT,
-            ADD COLUMN pub_year VARCHAR(4),
-            ADD COLUMN isbn VARCHAR(20);")
-
-# to set up the authors table ---------------------------------------------
-dbSendQuery(mydb, 
-            "CREATE TABLE authors
-            (author_id INT AUTO_INCREMENT PRIMARY KEY,
-            author_last VARCHAR(50),
-            author_first VARCHAR(50),
-            country VARCHAR(50));")
-
-
-# Adding data into tables -------------------------------------------------
-
-dbSendQuery(mydb, 
-            "INSERT INTO authors 
-            (author_last, author_first, country) 
-            VALUES('Kim', 'Daniel', 'ROK');")
-
-
-# fetching last data insert id number -------------------------------------
-
-last_id = fetch(dbSendQuery(mydb, "SELECT LAST_INSERT_ID();"))
-
-dbSendQuery(mydb, "INSERT INTO books (title, author_id, isbn, genre, pub_year) VALUES ('R and MySQL', 1, '6900690075', 'tutorials', '2019');")
-
-try1 = fetch(dbSendQuery(mydb, "SELECT book_id, title, description FROM books WHERE genre = 'tutorials';"))
+# 
+# dbListTables(con)
+# dbDisconnect(con)
+# rm(con)
+# 
+# breast_cancer <- dbGetQuery(con, "select * from breast_cancer;")
+# data <- breast_cancer %>% as_tibble()
+# 
+# # create database ---------------------------------------------------------
+# 
+# # dbSendQuery(con, "CREATE DATABASE bookstore;")
+# # dbSendQuery(con, "USE bookstore;")
+# # mydb = dbConnect(MySQL(), user='root', password='chr0n3!7!', host='localhost', dbname="bookstore")
+# # 
+# # dbSendQuery(mydb, "drop table if exists books, authors")
+# 
+# # creating tables in bookstore:
+# 
+# dbSendQuery(mydb, "CREATE TABLE books (book_id INT, 
+#             title VARCHAR(50),
+#             author VARCHAR(50));")
+# 
+# dbListTables(mydb);
+# 
+# dbSendQuery(mydb,
+#             "ALTER TABLE books
+#             CHANGE COLUMN book_id book_id INT AUTO_INCREMENT PRIMARY KEY,
+#             CHANGE COLUMN author author_id INT,
+#             ADD COLUMN description TEXT,
+#             ADD COLUMN genre ENUM('novel', 'poetry', 'drama', 'tutorials', 'text', 'other'),
+#             ADD COLUMN publisher_id INT,
+#             ADD COLUMN pub_year VARCHAR(4),
+#             ADD COLUMN isbn VARCHAR(20);")
+# 
+# # to set up the authors table ---------------------------------------------
+# dbSendQuery(mydb, 
+#             "CREATE TABLE authors
+#             (author_id INT AUTO_INCREMENT PRIMARY KEY,
+#             author_last VARCHAR(50),
+#             author_first VARCHAR(50),
+#             country VARCHAR(50));")
+# 
+# 
+# # Adding data into tables -------------------------------------------------
+# 
+# dbSendQuery(mydb, 
+#             "INSERT INTO authors 
+#             (author_last, author_first, country) 
+#             VALUES('Kim', 'Daniel', 'ROK');")
+# 
+# 
+# # fetching last data insert id number -------------------------------------
+# 
+# last_id = fetch(dbSendQuery(mydb, "SELECT LAST_INSERT_ID();"))
+# 
+# dbSendQuery(mydb, "INSERT INTO books (title, author_id, isbn, genre, pub_year) VALUES ('R and MySQL', 1, '6900690075', 'tutorials', '2019');")
+# 
+# try1 = fetch(dbSendQuery(mydb, "SELECT book_id, title, description FROM books WHERE genre = 'tutorials';"))
 
 
 # Loading data ---------------------------------------------------------------
 
-data <- dbGetQuery(con, "select * from breast;")
+data <- dbGetQuery(con, "select * from breast_cancer;")
 data %>% glimpse()
 summary(data)
 
@@ -125,11 +142,103 @@ data_1 <- data %>% as_tibble() %>% dplyr::select(-row_names, -id)
 # class 변수를 factor 변수로 변환
 data_1$class <- as.factor(data_1$class)
 
+# recode.....----
 data_1 %>%
   mutate(class = recode(class, 'B' = 0, 'M' = 1)) %>%
   mutate(class = as.factor(class)) -> data_2 -> data_cancer
 
 # data$class <- factor(ifelse(data$class == "B", 0, 1))
+
+# recode and case_when.... ------------------------------------------------
+
+df <- tribble(
+  ~subject,
+  "chemistry",
+  "biology",
+  "physics"
+)
+
+df %>% 
+  mutate(subject2 = case_when(
+    subject == "chemistry" ~ 1,
+    subject == "biology" ~ 1,
+    subject == "physics" ~ 2,
+  ))
+
+df %>% 
+  mutate(subject2 = recode(
+    subject, 
+    "chemistry" = 1,
+    "biology" = 1,
+    "physics" = 2,
+  ))
+
+
+data_1 %>%
+  # mutate(class = recode(class, 'B' = 0, 'M' = 1))  %>% 
+  dplyr::select(class, mean_radius)
+
+
+data_1 %>%
+  mutate(class = recode(class, 'B' = 0, 'M' = 1))  %>% 
+  dplyr::select(class, mean_radius)
+
+
+data_1 %>%
+  mutate(class = case_when(class == 'B' ~ 0, 
+                           class == 'M' ~ 1))  %>% 
+  dplyr::select(class, mean_radius)
+
+##----
+iris %>%
+  mutate(Species2 = recode(Species,
+                           'setosa' = 1,
+                           'versicolor' = 2, 
+                           'virginica' = 3
+  ))
+
+# 보통 하나의 컬럼에 대한 간단한 조건만을 식별하여 값을 변화시킬 땐 recode()를 이용...
+iris %>%
+  mutate(Species = recode(Species,
+                           'setosa' = 1,
+                           'versicolor' = 2, 
+                           'virginica' = 3
+  ))
+
+
+iris %>%
+  mutate(Species2 = case_when(Species == 'setosa' ~ 1,
+                              Species == 'versicolor' ~ 2,
+                              Species == 'virginica' ~ 3 
+  ))
+
+
+# 좀 더 여러 컬럼에 대한 복잡한 조건식을 적용하여 값을 변화시킬 땐 case_when()을 이용...
+iris %>%
+  mutate(Species2 = case_when(
+    Species == 'setosa' & Sepal.Length >= 5.8 ~ 1,
+    Species == 'setosa' & Sepal.Length < 5.8 ~ 2,
+    Species == 'versicolor' & Sepal.Length >= 5.8 ~ 3,
+    Species == 'versicolor' & Sepal.Length < 5.8 ~ 4,
+    Species == 'virginica' & Sepal.Length >= 5.8 ~ 5,
+    Species == 'virginica' & Sepal.Length < 5.8 ~ 6
+  ))
+
+
+iris$Sepal.Length %>% fivenum()
+# 4.3 5.1 5.8 6.4 7.9
+
+
+iris %>%
+  mutate(sepal.legnth_is_greater_6.5 = 
+           cut(Sepal.Length, c(4.3, 5.8, 7.9)))
+
+iris %>%
+  mutate(sepal.legnth_is_greater_6.5 = 
+           cut(Sepal.Length, c(4.3, 5.8, 7.9))) %>%
+  filter(Sepal.Length == 5.8)
+
+
 
 # EDA ---------------------------------------------------------------------
 
