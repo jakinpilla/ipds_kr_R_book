@@ -443,7 +443,7 @@ plot(perf_tr, col = 'blue', add = T)
 performance(pred_tr, "auc")@y.values[[1]]
 binomial_deviance(y_obs, yhat_tr)
 
-predcited_class <- predict(data_tr, newdata = testing[, -1], type = 'class')
+predcited_class <- predict(data_tr, newdata = testing[, -1],'class')
 actual_class <- testing$class %>% as.character %>% as.numeric
 
 table(predcited_class, actual_class)
@@ -522,7 +522,6 @@ abline(0, 1)
 legend('bottomright', inset=.1,
        legend=c("GLM", "glmnet", "RF"),
        col = c("black", "blue", "red"), lty = 1, lwd = 2)
-
 # we choose lasso model...
 # apply test dataset to lasso model...
 

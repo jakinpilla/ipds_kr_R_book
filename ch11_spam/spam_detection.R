@@ -49,21 +49,33 @@ con_spam <- dbConnect(
 data_from_db <- dbGetQuery(con_spam, "select * from spambase;")
 data_from_db %>% colnames()
 
-data_from_db %>% select(-row_names) -> data_spam
-data_spam %>% glimpse()
+data_from_db %>% dplyr::select(-row_names) -> data_spam
+data_spam
 
-data_spam %>% select(1:10, 58) %>% sample_n(500) -> data_tmp_1
 
+data_spam %>% dplyr::select(1:10, 58) %>% sample_n(500) -> data_tmp_1
+
+## ggpairs & pairs.panels...
 library(GGally)
 ggpairs(data_tmp_1)
 
-data_spam %>% select(48:57, 58) %>% sample_n(500) -> data_tmp_2
+library(psych)
+pairs.panels(data_tmp_1)
+
+library(corrgram)
+corrgram(data_tmp_1, order = T, upper.panel = panel.cor)
+
+?corrgram
+
+data_spam %>% dplyr::select(48:57, 58) %>% sample_n(500) -> data_tmp_2
 ggpairs(data_tmp_2)
 
 cor(data_spam[, -58], as.numeric(data_spam$class)) %>% as.data.frame() %>%
   rename(cor = V1) -> tmp
 
 tmp$var <- rownames(tmp)
+
+?reorder
 
 tmp %>%
   ggplot(aes(reorder(var, cor), cor)) + 
@@ -89,6 +101,7 @@ data_spam %>% ggplot(aes(class, capital_run_length_longest)) +
 
 grid.arrange(p1, p2, p3, p4, ncol = 2)
 
+# `$` 즉 돈을 의미하는 표현이 많은 것인 spam 메일일 가능성이 크다...
 
 # 특수문자 변수명 처리 -------------------------------------------------------------
 
@@ -98,12 +111,13 @@ library(randomForest)
 old_names <- names(data_spam)
 new_names <- make.names(old_names, unique = T)
 
-cbind(old_names, new_names)[old_names != new_names, ]
+changed_nm_tbl <- cbind(old_names, new_names)[old_names != new_names, ] # beautiful coding...
+changed_nm_tbl
 
 names(data_spam) <- new_names
 
-
 # Data Spliting -----------------------------------------------------------
+
 nrow(data_spam) -> n
 1:n %>% sample(., n*.6) -> train_idx
 setdiff(1:n, train_idx) -> idx_without_train
@@ -120,14 +134,93 @@ validation_data <- data_spam[validation_idx, ]
 test_data <- data_spam[test_idx, ]
 
 
+library(caret)
+
+train_idx <- createDataPartition(data_spam$class, p=.8, list =F)[, 1]
+test_idx <- setdiff(1:nrow(data_spam), train_idx)
+
+# re_train_idx <- sample(train_idx, length(train_idx)*.9)
+# val_idx <- setdiff(train_idx, re_train_idx)
+
+train_data <- data_spam[train_idx, ]
+test_data <- data_spam[test_idx, ]
+
+train_data %>% dim()
+test_data %>% dim()
+
+val_idx <- createFolds(train_data$class, k = 10, list = T)[[1]]
+re_train_idx <- setdiff(1:nrow(train_data), val_idx)
+
+# 이후 해볼 과제/...Cross Validation을 해보자...
+
+re_train_idx %>% length
+val_idx %>% length
+test_idx %>% length
+
+
+data_spam %>% nrow()
+re_train_idx %>% length + val_idx %>% length + test_idx %>% length
+
+re_train_data <- data_spam[re_train_idx, ]
+validation_data <- data_spam[validation_idx, ]
+test_data <- data_spam[test_idx, ]
+
+re_train_data$class <- as.factor(re_train_data$class)
+validation_data$class <- as.factor(validation_data$class)
+test_data$class <- as.factor(test_data$class)
+
+re_train_data %>% dim()
+validation_data %>% dim()
+test_data %>% dim()
+
+re_train_data$class %>% table() %>% prop.table() # 약 50:50...왜 그럴까??
+validation_data$class %>% table() %>% prop.table() # 약 50:50...왜 그럴까??
+test_data$class %>% table() %>% prop.table()
+
+train_data %>% nrow()
+test_data %>% nrow()
+
+# #  upSample().... ---------------------------------------------------------
+# 
+# upsampled <- upSample(train_data %>% dplyr::select(-Class), train_data$Class)
+# 
+# train_data %>% nrow()
+# train_data %>% colnames()
+# 
+# upsampled %>% nrow()
+# upsampled %>% colnames()
+# 
+# 
+# train_data %>% dplyr::select(class) %>% table()
+# upsampled %>% dplyr::select(Class) %>% table() # Why Class?? 왜 대문자로 바뀌었을까??...
+# 
+# 
+# train_data %>% nrow()
+# re_train_idx <- createDataPartition(train_data$class, p = .8, list = F)[, 1]
+# validation_idx <- setdiff(1:nrow(train_data), re_train_idx)
+# 
+# 
+# re_train_idx %>% length()
+# validation_idx %>% length()
+# 
+# 
+# re_train_data = train_data[re_train_idx, ]
+# validation_data = train_data[validation_idx, ]
+
+
 # Logistic Regression -----------------------------------------------------
 
-lm_full <- glm(class ~., data = train_data, family = binomial)
+train_data %>% class()
+lm_full <- glm(class ~., data = re_train_data, family = binomial)
 summary(lm_full)
 
+# upsampled %>% class()
+# lm_full_upsampled <- glm(Class ~ ., data = upsampled, family = binomial)
+# summary(lm_full_upsampled)
 
 # Validation --------------------------------------------------------------
 library(ROCR)
+
 y_obs <- as.numeric(as.character(validation_data$class))
 yhat_lm <- predict(lm_full, newdata = validation_data, type = 'response')
 pred_lm <- prediction(yhat_lm, y_obs)
@@ -147,7 +240,7 @@ binomial_deviance(y_obs, yhat_lm)
 
 # Lasso -------------------------------------------------------------------
 
-xx <- model.matrix(class ~.-1, data_spam)
+xx <- model.matrix(class ~.-1, data_spam) # -1 :: 절편항은 필요하지 않으므로...
 x <- xx[train_idx, ]
 y <- as.numeric(as.character(train_data$class))
 glimpse(x)
@@ -171,7 +264,7 @@ binomial_deviance(y_obs, yhat_glmnet)
 
 # Tree Model ---------------------------------------------------------------
 
-data_tr <- rpart(class ~., data = train_data)
+data_tr <- rpart(class ~., data = re_train_data)
 data_tr
 
 printcp(data_tr)
@@ -191,7 +284,7 @@ binomial_deviance(y_obs, yhat_tr)
 # RandomForest ------------------------------------------------------------
 
 set.seed(2019)
-data_rf <- randomForest(class ~., train_data)
+data_rf <- randomForest(class ~., re_train_data)
 data_rf
 
 opar <- par(mfrow = c(1, 2))
@@ -203,6 +296,47 @@ yhat_rf <- predict(data_rf, newdata = validation_data, type = 'prob')[, '1']
 pred_rf <- prediction(yhat_rf, y_obs)
 performance(pred_rf, "auc")@y.values[[1]]
 binomial_deviance(y_obs, yhat_rf)
+
+# 종합하기.... ----------------------------------------------------------------
+
+method = c('glmnet', 'tr', 'rf')
+auc = c(performance(pred_glmnet, "auc")@y.values[[1]], 
+        performance(pred_tr, "auc")@y.values[[1]],
+        performance(pred_rf, "auc")@y.values[[1]])
+
+bin_dev = c(binomial_deviance(y_obs, yhat_glmnet),
+            binomial_deviance(y_obs, yhat_tr),
+            binomial_deviance(y_obs, yhat_rf))
+
+
+data.frame(method = method, 
+           auc = auc,
+           bin_dev = bin_dev)
+
+perf_glmnet <- performance(pred_glmnet, measure = "tpr", x.measure = "fpr")
+perf_tr <- performance(pred_tr, measure = "tpr", x.measure = "fpr")
+perf_rf <- performance(pred_rf, measure="tpr", x.measure = "fpr")
+# perf_gbm <- performance(pred_gbm, measure = "tpr", x.measure = "fpr")
+
+plot(perf_glmnet, col="black", main="ROC Curve")
+plot(perf_tr, add=T, col="blue")
+plot(perf_rf, add=T, col="red")
+# plot(perf_gbm, add=T, col="cyan")
+abline(0, 1)
+legend('bottomright', insert.1, 
+       legend=c("glmnet", "TREE", "RF"), 
+       col = c('black', 'blue', 'red'), lty=1, lwd=2)
+
+# rf is winner...
+# we apply test data to randomforest model...
+
+y_obs_test <- test_data$class %>% as.character() %>% as.numeric()
+yhat_rf_test <- predict(data_rf, newdata=test_data, type='prob')[, '1']
+pred_rf <- prediction(yhat_rf_test, y_obs_test)
+
+
+performance(pred_rf, "auc")@y.values[[1]]
+binomial_deviance(y_obs_test, yhat_rf_test)
 
 
 # Boosting ----------------------------------------------------------------
@@ -220,6 +354,9 @@ yhat_gbm <- predict(data_gbm, n.trees=best_iter, newdata=validation_data, type='
 pred_gbm <- prediction(yhat_gbm, y_obs)
 performance(pred_gbm, "auc")@y.values[[1]]
 binomial_deviance(y_obs, yhat_gbm)
+
+# -------------------------------------------------------------------------
+
 
 method = c('lm', 'glmnet', 'rf', 'gbm')
 auc = c(performance(pred_glmnet, "auc")@y.values[[1]], 
