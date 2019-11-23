@@ -25,19 +25,19 @@ names(data) <- c('word_freq_make', 'word_freq_address', 'word_freq_all', 'word_f
                  'capital_run_length_average', 'capital_run_length_longest', 'capital_run_length_total',
                  'class')
 
-data %>% View()
-
-con <- dbConnect(
-  MySQL(),
-  user = "root", 
-  password = "chr0n3!7!"
-)
-
-dbSendQuery(con, "CREATE DATABASE spambase;")
-dbSendQuery(con, "USE spambase;")
-
-dbWriteTable(con, "spambase", data, overwrite = T)
-dbDisconnect(con)
+data # %>% View()
+# 
+# con <- dbConnect(
+#   MySQL(),
+#   user = "root", 
+#   password = "chr0n3!7!"
+# )
+# 
+# dbSendQuery(con, "CREATE DATABASE spambase;")
+# dbSendQuery(con, "USE spambase;")
+# 
+# dbWriteTable(con, "spambase", data, overwrite = T)
+# dbDisconnect(con)
 
 con_spam <- dbConnect(
   MySQL(),
