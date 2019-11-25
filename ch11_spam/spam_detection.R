@@ -109,7 +109,7 @@ library(randomForest)
 # data_rf <- randomForest(class ~. , data = data_spam)
 
 old_names <- names(data_spam)
-new_names <- make.names(old_names, unique = T)
+new_names <- make.names(old_names, unique = T) # make syntactically valid names...
 
 changed_nm_tbl <- cbind(old_names, new_names)[old_names != new_names, ] # beautiful coding...
 changed_nm_tbl

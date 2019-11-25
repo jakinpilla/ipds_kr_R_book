@@ -114,7 +114,7 @@ df_tmp[total_idx, ] %>%
 
 capital_run_length_total <- function(x) {
   
-  df_tmp <- count_capital_per_words(X) %>% enframe() 
+  df_tmp <- count_capital_per_words(x) %>% enframe() 
   
   df_tmp_1 <- df_tmp %>%
     filter(value != 0) %>%
