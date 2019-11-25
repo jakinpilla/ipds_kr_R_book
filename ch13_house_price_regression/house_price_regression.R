@@ -23,7 +23,7 @@ dbDisconnect(con)
 con_house_price <- dbConnect(
   MySQL(),
   user = "root", 
-  password = "******"
+  password = "chr0n3!7!",
   dbname = "house_price"
 )
 
@@ -54,20 +54,54 @@ train_data <- data_house[train_idx, ]
 validate_data <- data_house[validate_idx, ]
 test_data <- data_house[test_idx, ]
 
-data_lm_full <- lm(medv ~., data=train_data)
+
+# Data split with caret... ------------------------------------------------
+
+library(caret)
+
+data_house %>% nrow()
+data_house
+
+train_idx <- createDataPartition(data_house$medv, p = .8, list = F)[, 1]
+test_idx <- setdiff(1:nrow(data_house), train_idx)
+
+train_set <- data_house[train_idx, ]
+
+re_train_idx <- createDataPartition(train_set$medv, p = .9, list = F)[, 1]
+val_idx <- setdiff(1:nrow(train_set), re_train_idx)
+
+train_set <- data_house[train_idx, ]
+re_train_set <- train_set[re_train_idx, ]
+val_set <- train_set[val_idx, ]
+test_set <- data_house[test_idx, ]
+
+train_set %>% nrow()
+
+re_train_set %>% nrow()
+val_set %>% nrow()
+
+test_set %>% nrow()
+
+
+# lm modeling-------------------------------------------------------------------------
+
+data_lm_full <- lm(medv ~., data=train_set)
 summary(data_lm_full)
 
 predict(data_lm_full, newdata=data_house[1:5, ])
 
 plot(data_lm_full)
 
-data_lm_full_2 <- lm(medv ~.^2, data=train_data)
+data_lm_full_2 <- lm(medv ~.^2, data=train_set)
 summary(data_lm_full_2)
 
 length(coef(data_lm_full_2))
 
 library(MASS)
 data_step <- step(data_lm_full, scope=list(upper = ~.^2, lower= ~1))
+
+data_step <- stepAIC(data_lm_full, scope=list(upper = ~.^2, lower= ~1))
+
 data_step
 anova(data_step)
 summary(data_step)
@@ -76,15 +110,15 @@ length(coef(data_step))
 
 # Validation --------------------------------------------------------------
 
-y_obs <- validate_data$medv
-yhat_lm <- predict(data_lm_full, newdata=validate_data)
-yhat_lm_2 <- predict(data_lm_full_2, newdata=validate_data)
-yhat_step <- predict(data_step, newdata=validate_data)
+y_obs <- val_set$medv
+yhat_lm <- predict(data_lm_full, newdata=val_set)
+yhat_lm_2 <- predict(data_lm_full_2, newdata=val_set)
+yhat_step <- predict(data_step, newdata=val_set)
 
 library(modelr)
-rmse(data_lm_full, validate_data)
-rmse(data_lm_full_2, validate_data)
-rmse(data_step, validate_data)
+rmse(data_lm_full, val_set)
+rmse(data_lm_full_2, val_set)
+rmse(data_step, val_set)
 
 
 # Lasso -------------------------------------------------------------------
