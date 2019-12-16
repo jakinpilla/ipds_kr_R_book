@@ -89,6 +89,19 @@ log(ad.cvfit$lambda.1se) # 해석 가능한 모형
 length(which(coef(ad.cvfit, s = "lambda.min") > 0))
 length(which(coef(ad.cvfit, s = "lambda.1se") > 0))
 
+ad.cvfit %>% coef(s = 'lambda.min') %>% as.matrix() %>%
+  as.data.frame() %>%
+  rename(value = 1) %>%
+  filter(value > 0) %>%
+  nrow()
+
+ad.cvfit %>%
+  coef(s = 'lambda.1se') %>%
+  as.matrix() %>%
+  as.data.frame() %>%
+  rename(value = 1) %>%
+  filter(value > 0) %>%
+  nrow()
 
 # case when alpha 0, .5, 1 ------------------------------------------------
 # alpha = 1: Lasso
