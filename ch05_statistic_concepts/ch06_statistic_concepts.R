@@ -1,7 +1,44 @@
-y <- sleep$extra[sleep$group == 1]
+#' ---
+#' title: "ch05(statistic concept)"
+#' author: "jakinpilla"
+#' date : "`r format(Sys.time(), '%Y-%m-%d')`"
+#' output: 
+#'    github_document : 
+#'        pandoc_args: --webtex
+#'        toc : true
+#' ---
 
+#+ message = FALSE, warning = FALSE
+library(ez)
+library(ggplot2)
+library(nlme)
+library(pastecs)
+library(reshape2)
+library(WRS)
+library(clinfun)
+library(pgirmess)
+library(car)
+library(tidyverse)
+library(sqldf)
+library(gapminder)
+library(gridExtra)
+
+#' #### T 검정
+
+#' sleep이라는 데이터를 불러온다. (일원분산분석에 적합한 데이터...)
+sleep
+
+#; group이 1인 extra 열의 값을 추출한다.
+sleep %>%
+  filter(group == 1) %>%
+  select(extra) %>% pull() -> y
+
+#' 요약통계량을 살펴본다.
 summary(y)
+
+#' 표준편차
 sd(y)
+
 par(mfrow=c(2, 2))
 hist(y)
 boxplot(y)
@@ -35,6 +72,8 @@ t.test(y, alternative = 'greater')
 #   mean of x 
 # 0.75 
 
+#' 평균이 0이고 표준편차가 1.8인 정규분포 곡선을 그려보자.
+par(mfrow = c(1,1))
 curve(dnorm(x, 0, 1.8), -4, 4)
 
 options(digits = 3)
@@ -88,7 +127,8 @@ qqnorm(ts_star); qqline(ts_star)
 
 length(which(ts_star > 1.3257)) / B
 
-# 신뢰구간의 의미...
+
+#' #### 신뢰구간의 의미...
 
 set.seed(2019)
 
@@ -133,20 +173,24 @@ conf_intervals %>%
   geom_errorbar(aes(ymin=lower, ymax = upper)) +
   geom_hline(yintercept = true_mu, col = 'red')
 
+
+#' #### 중심극한정리
 par(mfrow = c(1,1))
 hist(c(0,1), nclass=100, prob = TRUE, main = 'Individual sleep time increase')
 set.seed(2019)
 
+
 B <- 1e4
 n <- 10
 
-xbars_star < rep(NA, B)
+xbars_star <- rep(NA, B)
 
 for(b in 1:B) {
   xbars_star[b] <- mean(sample(c(0,1), size = n, replace = T))
 }
 
 hist(xbars_star, nclass= 100, main = 'Sample mean of 10 obs')
+
 
 
 

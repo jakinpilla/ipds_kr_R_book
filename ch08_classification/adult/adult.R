@@ -78,15 +78,18 @@ y_obs <- ifelse(validation$wage == ">50K", 1, 0)
 yhat_lm <- predict(ad_glm_full, newdata = validation, type = 'response')
 
 result_with_training <- data.frame(y_obs, yhat_lm)
+result_with_training %>% str()
 
-library(gridExtra)
+------------------------------------------library(gridExtra)
 result_with_training %>%
   ggplot(aes(y_obs, yhat_lm, group = y_obs, fill = factor(y_obs))) +
-  geom_boxplot() -> p1
+  geom_boxplot() +
+  scale_fill_brewer(palette = "Set1") -> p1
 
 result_with_training %>%
   ggplot(aes(yhat_lm, fill=factor(y_obs))) +
-  geom_density(alpha = .5) -> p2
+  geom_density(alpha = .5) +
+  scale_fill_brewer(palette = "Set1") -> p2
 
 grid.arrange(p1, p2, ncol = 2)
 
